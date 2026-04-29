@@ -7,6 +7,7 @@ const { startQueueWorker } = require('./queue/worker');
 const { startDailyBriefing } = require('./discord/briefing');
 const telegramRoutes = require('./routes/telegram');
 const healthRoutes = require('./routes/health');
+const apiRoutes = require('./routes/api');
 
 const app = express();
 app.use(express.json());
@@ -14,6 +15,7 @@ app.use(express.json());
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/webhook/telegram', telegramRoutes);
 app.use('/health', healthRoutes);
+app.use('/api', apiRoutes);
 
 // ── Boot sequence ─────────────────────────────────────────────────────────────
 async function boot() {
@@ -23,7 +25,7 @@ async function boot() {
   const db = initSupabase();
   const { error } = await db.from('businesses').select('id').limit(1);
   if (error && error.code !== 'PGRST116') {
-    logger.error('Supabase connection failed:', error.message);
+    logger.error(`Supabase connection failed [${error.code}]: ${error.message || JSON.stringify(error)}`);
     logger.error('Run: node scripts/migrate.js  to set up the database first.');
     process.exit(1);
   }

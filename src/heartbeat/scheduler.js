@@ -200,6 +200,10 @@ async function runStrategyChecks(businessId, bizName) {
   }
 
   await postToDiscord(businessId, 'alerts', digest);
+
+  // Referral checks (Priority 4)
+  await runReferralChecks(businessId);
+
   await logHeartbeatCheck(businessId, 'strategy', alerts.length);
 }
 
@@ -312,6 +316,73 @@ async function fireOpportunityAlert(businessId, opp) {
       `🚨 *Stalled Deal*: ${opp.name}\n` +
       `$${opp.value} | Stage: ${opp.stage} | ${daysSinceMoved} days\n` +
       `Lead: ${opp.leads?.name || 'unknown'}\n\nSend /pipeline for full view.`
+    );
+  }
+}
+
+// ── Referral Checks (daily, Priority 4) ──────────────────────────────────────
+
+async function runReferralChecks(businessId) {
+  const supabase = db();
+  const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  // Check 1: Won opportunities with no referral request sent in 60 days
+  const { data: wonOpps } = await supabase
+    .from('opportunities')
+    .select('id,name,value,lead_id,updated_at')
+    .eq('business_id', businessId)
+    .eq('stage', 'won')
+    .gt('updated_at', sixtyDaysAgo); // won within last 60 days
+
+  for (const opp of (wonOpps || [])) {
+    if (!opp.lead_id) continue;
+
+    // Check if a referral request interaction exists for this lead
+    const { data: existing } = await supabase
+      .from('interactions')
+      .select('id')
+      .eq('business_id', businessId)
+      .eq('lead_id', opp.lead_id)
+      .contains('metadata', { type: 'referral_request' })
+      .limit(1);
+
+    if (!existing || existing.length === 0) {
+      // Fire referral opportunity event
+      await enqueue(businessId, {
+        action_type:      'send_referral_request',
+        action_category:  'communication',
+        execution_target: 'api',
+        explanation:      `Deal "${opp.name}" was won recently — ideal time to ask for a referral.`,
+        payload: {
+          lead_id: opp.lead_id,
+          opportunity_id: opp.id,
+          opportunity_name: opp.name,
+          trigger: 'heartbeat_won_deal',
+          message: `Hi, I wanted to personally thank you for choosing us for ${opp.name}. If you know anyone who could benefit from what we do, I'd love an introduction.`,
+        },
+        priority: 4,
+        status: 'approval_required',
+      });
+
+      logger.info(`Referral opportunity queued for opportunity ${opp.id}`);
+    }
+  }
+
+  // Check 2: Pending commissions older than 30 days
+  const { data: pendingCommissions } = await supabase
+    .from('commissions')
+    .select('id,affiliate_id,amount,created_at,affiliates(name,email)')
+    .eq('business_id', businessId)
+    .eq('status', 'pending')
+    .lt('created_at', thirtyDaysAgo);
+
+  if (pendingCommissions && pendingCommissions.length > 0) {
+    const totalOwed = pendingCommissions.reduce((s, c) => s + parseFloat(c.amount || 0), 0);
+    await postToDiscord(businessId, 'alerts',
+      `💰 **Pending Commissions**: ${pendingCommissions.length} commission(s) owed to affiliates\n` +
+      `Total: $${totalOwed.toFixed(2)} | Oldest: ${pendingCommissions[0].created_at?.split('T')[0]}\n` +
+      `Review and pay via /approvals or Settings → Integrations`
     );
   }
 }

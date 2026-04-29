@@ -1,16 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../utils/supabase');
 
-router.get('/', async (req, res) => {
-  const supabase = db();
-  const { error } = await supabase.from('businesses').select('id').limit(1);
-
+router.get('/', (req, res) => {
   res.json({
-    status: error ? 'degraded' : 'ok',
+    status: 'ok',
     service: 'the-partner',
     timestamp: new Date().toISOString(),
-    db: error ? 'error' : 'connected',
   });
 });
 

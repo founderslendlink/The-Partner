@@ -37,6 +37,20 @@ BEGIN
     (p_business_id, 'switch_mode',          'approval_required', '{}',                              ARRAY['telegram']),
     (p_business_id, 'close_opportunity',    'approval_required', '{}',                              ARRAY['telegram']),
 
+    -- SOCIAL MEDIA: approval required before publishing
+    (p_business_id, 'post_instagram',       'approval_required', '{}',                              ARRAY['telegram']),
+    (p_business_id, 'post_linkedin',        'approval_required', '{}',                              ARRAY['telegram']),
+    (p_business_id, 'post_twitter',         'approval_required', '{}',                              ARRAY['telegram']),
+    (p_business_id, 'post_facebook',        'approval_required', '{}',                              ARRAY['telegram']),
+    (p_business_id, 'schedule_post',        'approval_required', '{}',                              ARRAY['telegram']),
+    (p_business_id, 'get_post_performance', 'auto',              '{}',                              '{}'),
+
+    -- REFERRAL / AFFILIATE: financial actions blocked, others require approval
+    (p_business_id, 'send_referral_request','approval_required', '{}',                              ARRAY['telegram']),
+    (p_business_id, 'create_affiliate',     'approval_required', '{}',                              ARRAY['telegram']),
+    (p_business_id, 'record_referral',      'auto',              '{}',                              '{}'),
+    (p_business_id, 'pay_commission',       'blocked',           '{"reason": "financial"}',         ARRAY['telegram']),
+
     -- BLOCKED: irreversible or high-risk — hardcoded, cannot be changed
     (p_business_id, 'delete_record',        'blocked',           '{"reason": "irreversible"}',      ARRAY['telegram']),
     (p_business_id, 'execute_transaction',  'blocked',           '{"reason": "financial"}',         ARRAY['telegram']),
@@ -45,5 +59,31 @@ BEGIN
     (p_business_id, 'access_ext_accounts',  'blocked',           '{"reason": "security"}',          ARRAY['telegram']),
     (p_business_id, 'disable_heartbeat',    'blocked',           '{"reason": "monitoring_safety"}', ARRAY['telegram'])
   ON CONFLICT (business_id, action_type) DO NOTHING;
+END;
+$$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Backfill: insert new social + referral rules for all existing businesses
+-- Run this once after deploying Priority 2 and Priority 4
+-- ─────────────────────────────────────────────────────────────────────────────
+DO $$
+DECLARE
+  biz RECORD;
+BEGIN
+  FOR biz IN SELECT id FROM businesses LOOP
+    INSERT INTO permission_rules (business_id, action_type, rule, conditions, notif_channels)
+    VALUES
+      (biz.id, 'post_instagram',        'approval_required', '{}', ARRAY['telegram']),
+      (biz.id, 'post_linkedin',         'approval_required', '{}', ARRAY['telegram']),
+      (biz.id, 'post_twitter',          'approval_required', '{}', ARRAY['telegram']),
+      (biz.id, 'post_facebook',         'approval_required', '{}', ARRAY['telegram']),
+      (biz.id, 'schedule_post',         'approval_required', '{}', ARRAY['telegram']),
+      (biz.id, 'get_post_performance',  'auto',              '{}', '{}'),
+      (biz.id, 'send_referral_request', 'approval_required', '{}', ARRAY['telegram']),
+      (biz.id, 'create_affiliate',      'approval_required', '{}', ARRAY['telegram']),
+      (biz.id, 'record_referral',       'auto',              '{}', '{}'),
+      (biz.id, 'pay_commission',        'blocked',           '{"reason": "financial"}', ARRAY['telegram'])
+    ON CONFLICT (business_id, action_type) DO NOTHING;
+  END LOOP;
 END;
 $$;

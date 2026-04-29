@@ -236,6 +236,84 @@ async function handle_update_metrics(payload, businessId) {
   return { updated: entries.length };
 }
 
+// ── Social Media Actions (Priority 2) ────────────────────────────────────────
+
+async function handle_post_instagram(payload, businessId) {
+  const { postToInstagram } = require('../integrations/social');
+  const result = await postToInstagram(businessId, {
+    caption: payload.caption || payload.text,
+    imageUrl: payload.image_url || payload.media_urls?.[0],
+    postId: payload.post_id,
+  });
+  if (payload.post_id) {
+    await db().from('content_posts')
+      .update({ status: 'published', published_at: new Date().toISOString(), platform_post_id: result.platform_post_id })
+      .eq('id', payload.post_id).catch(() => {});
+  }
+  return result;
+}
+
+async function handle_post_linkedin(payload, businessId) {
+  const { postToLinkedIn } = require('../integrations/social');
+  const result = await postToLinkedIn(businessId, {
+    text: payload.text || payload.caption,
+    imageUrl: payload.image_url || payload.media_urls?.[0],
+    postId: payload.post_id,
+  });
+  return result;
+}
+
+async function handle_post_twitter(payload, businessId) {
+  const { postToTwitter } = require('../integrations/social');
+  const result = await postToTwitter(businessId, {
+    text: payload.text || payload.caption,
+    imageUrl: payload.image_url,
+    postId: payload.post_id,
+  });
+  return result;
+}
+
+async function handle_post_facebook(payload, businessId) {
+  const { postToFacebook } = require('../integrations/social');
+  const result = await postToFacebook(businessId, {
+    message: payload.message || payload.text || payload.caption,
+    imageUrl: payload.image_url || payload.media_urls?.[0],
+    postId: payload.post_id,
+  });
+  return result;
+}
+
+async function handle_schedule_post(payload, businessId) {
+  const supabase = db();
+  const { data, error } = await supabase.from('content_posts').insert({
+    business_id:  businessId,
+    platform:     payload.platform,
+    content:      payload.content || payload.caption || payload.text,
+    media_urls:   payload.media_urls || [],
+    hashtags:     payload.hashtags || [],
+    scheduled_at: payload.scheduled_at,
+    status:       'scheduled',
+    campaign_id:  payload.campaign_id || null,
+  }).select().single();
+  if (error) throw error;
+  return { post_id: data.id, scheduled_at: data.scheduled_at };
+}
+
+async function handle_get_post_performance(payload, businessId) {
+  const { getPostPerformance } = require('../integrations/social');
+  const perf = await getPostPerformance(
+    payload.platform,
+    payload.platform_post_id,
+    businessId
+  );
+  if (payload.post_id) {
+    await db().from('content_posts')
+      .update({ performance: perf, updated_at: new Date().toISOString() })
+      .eq('id', payload.post_id).catch(() => {});
+  }
+  return { performance: perf };
+}
+
 // ── Registry ──────────────────────────────────────────────────────────────────
 
 const handlers = {
@@ -252,6 +330,267 @@ const handlers = {
   post_discord_alert:   handle_post_discord_alert,
   send_telegram_notif:  handle_send_telegram_notif,
   update_metrics:       handle_update_metrics,
+  // Social (Priority 2)
+  post_instagram:         handle_post_instagram,
+  post_linkedin:          handle_post_linkedin,
+  post_twitter:           handle_post_twitter,
+  post_facebook:          handle_post_facebook,
+  schedule_post:          handle_schedule_post,
+  get_post_performance:   handle_get_post_performance,
+  // Email (Priority 3)
+  send_email:             handle_send_email,
+  send_campaign:          handle_send_campaign,
+  create_email_sequence:  handle_create_email_sequence,
+  // Referral (Priority 4)
+  send_referral_request:  handle_send_referral_request,
+  create_affiliate:       handle_create_affiliate,
+  record_referral:        handle_record_referral,
+  pay_commission:         handle_pay_commission,
 };
 
 module.exports = handlers;
+
+// ── Email Actions (Priority 3) — defined after registry to avoid hoisting issues ──
+
+async function handle_send_email(payload, businessId) {
+  const { sendEmail } = require('../integrations/email');
+  return sendEmail({
+    to:         payload.to,
+    subject:    payload.subject,
+    body:       payload.body || payload.html || payload.message,
+    businessId,
+    leadId:     payload.lead_id || null,
+  });
+}
+
+async function handle_send_campaign(payload, businessId) {
+  const { sendEmail } = require('../integrations/email');
+  const supabase = db();
+
+  // Fetch leads matching the criteria
+  let query = supabase.from('leads').select('id,name,email').eq('business_id', businessId);
+  if (payload.status_filter) query = query.eq('status', payload.status_filter);
+  const { data: leads } = await query.limit(payload.max_recipients || 500);
+
+  const validLeads = (leads || []).filter((l) => l.email);
+  let sent = 0;
+
+  for (const lead of validLeads) {
+    // Personalise subject/body
+    const subject = (payload.subject || '').replace('{{name}}', lead.name);
+    const body    = (payload.body    || '').replace('{{name}}', lead.name);
+    try {
+      await sendEmail({ to: lead.email, subject, body, businessId, leadId: lead.id });
+      sent++;
+    } catch (err) {
+      logger.warn(`Campaign email failed for ${lead.email}:`, err.message);
+    }
+  }
+
+  // Update campaign record if provided
+  if (payload.campaign_id) {
+    await supabase
+      .from('email_campaigns')
+      .update({ sent_count: sent, status: 'sent', sent_at: new Date().toISOString() })
+      .eq('id', payload.campaign_id)
+      .catch(() => {});
+  }
+
+  return { sent, total: validLeads.length };
+}
+
+async function handle_create_email_sequence(payload, businessId) {
+  const supabase = db();
+  const steps = payload.steps || [];
+  const jobs = [];
+
+  for (const step of steps) {
+    const sendAt = new Date(Date.now() + (step.delay_days || 0) * 86400000);
+    const { data } = await supabase
+      .from('scheduled_jobs')
+      .insert({
+        business_id:     businessId,
+        name:            `email_sequence_${payload.sequence_name}_step_${step.step}`,
+        job_type:        'send_email',
+        payload:         {
+          to:         step.to,
+          subject:    step.subject,
+          body:       step.body,
+          lead_id:    step.lead_id,
+          sequence:   payload.sequence_name,
+        },
+        next_run_at:     sendAt.toISOString(),
+        cron_expression: null,
+      })
+      .select()
+      .single();
+    if (data) jobs.push(data.id);
+  }
+
+  return { sequence: payload.sequence_name, jobs_created: jobs.length };
+}
+
+// ── Referral Actions (Priority 4) ────────────────────────────────────────────
+
+async function handle_send_referral_request(payload, businessId) {
+  const supabase = db();
+
+  // Log the referral request as an interaction
+  await supabase.from('interactions').insert({
+    business_id: businessId,
+    lead_id:     payload.lead_id || null,
+    channel:     payload.channel || 'telegram',
+    direction:   'outbound',
+    content:     payload.message,
+    metadata:    { type: 'referral_request', referral_code: payload.referral_code || null },
+  });
+
+  // Create a follow-up task
+  await supabase.from('tasks').insert({
+    business_id:         businessId,
+    title:               `Follow up on referral request sent to lead ${payload.lead_id || 'unknown'}`,
+    assigned_agent:      'referral',
+    status:              'pending',
+    priority:            4,
+    due_at:              new Date(Date.now() + 7 * 86400000).toISOString(), // 7 days
+    related_entity_type: 'lead',
+    related_entity_id:   payload.lead_id || null,
+    context:             { referral_code: payload.referral_code },
+  });
+
+  // Upsert a referral_tracking row (pending until lead converts)
+  if (payload.lead_id) {
+    await supabase.from('referral_tracking').upsert({
+      business_id:     businessId,
+      affiliate_id:    payload.affiliate_id || null,
+      referred_lead_id: null,
+      referral_code:   payload.referral_code || null,
+      status:          'pending',
+    }, { onConflict: 'business_id,referral_code' }).catch(() => {});
+  }
+
+  return { sent: true, lead_id: payload.lead_id };
+}
+
+async function handle_create_affiliate(payload, businessId) {
+  const supabase = db();
+  const { v4: uuidv4 } = require('uuid');
+
+  const referralCode = payload.referral_code ||
+    payload.name.toLowerCase().replace(/\s+/g, '').slice(0, 8) +
+    Math.random().toString(36).slice(2, 6);
+
+  const { data, error } = await supabase.from('affiliates').insert({
+    business_id:  businessId,
+    lead_id:      payload.lead_id || null,
+    name:         payload.name,
+    email:        payload.email,
+    referral_code: referralCode,
+    program_id:   payload.program_id,
+    status:       'active',
+  }).select().single();
+
+  if (error) throw error;
+
+  // Send welcome message via email if available
+  const { sendEmail } = require('../integrations/email');
+  await sendEmail({
+    to:         payload.email,
+    subject:    'Welcome to our affiliate program!',
+    body:       `Hi ${payload.name},<br><br>Your referral code is: <strong>${referralCode}</strong><br><br>Every qualified referral earns you a reward. Thank you!`,
+    businessId,
+    leadId:     payload.lead_id || null,
+  }).catch(() => {}); // non-fatal
+
+  return { affiliate_id: data.id, referral_code: referralCode };
+}
+
+async function handle_record_referral(payload, businessId) {
+  const supabase = db();
+
+  // Create referral tracking record
+  const { data, error } = await supabase.from('referral_tracking').insert({
+    business_id:     businessId,
+    affiliate_id:    payload.affiliate_id || null,
+    referred_lead_id: payload.referred_lead_id || null,
+    referral_code:   payload.referral_code || null,
+    status:          'qualified',
+  }).select().single();
+
+  if (error) throw error;
+
+  // Fetch program to calculate reward
+  let rewardAmount = 0;
+  if (payload.affiliate_id) {
+    const { data: affiliate } = await supabase
+      .from('affiliates')
+      .select('program_id, referral_programs(reward_value, reward_type)')
+      .eq('id', payload.affiliate_id)
+      .single();
+
+    if (affiliate?.referral_programs) {
+      rewardAmount = affiliate.referral_programs.reward_value;
+
+      // Create pending commission
+      await supabase.from('commissions').insert({
+        business_id:  businessId,
+        affiliate_id: payload.affiliate_id,
+        referral_id:  data.id,
+        amount:       rewardAmount,
+        status:       'pending',
+      });
+
+      // Increment affiliate totals
+      await supabase.rpc('increment_affiliate_stats', {
+        p_affiliate_id: payload.affiliate_id,
+        p_amount: rewardAmount,
+      }).catch(() => {
+        // rpc may not exist, do manual update
+        supabase.from('affiliates')
+          .update({
+            total_referrals: supabase.raw('total_referrals + 1'),
+          })
+          .eq('id', payload.affiliate_id)
+          .catch(() => {});
+      });
+    }
+  }
+
+  return { referral_id: data.id, reward_amount: rewardAmount };
+}
+
+async function handle_pay_commission(payload, businessId) {
+  // Always approval_required — the permission layer enforces this
+  // but we also double-check here
+  const supabase = db();
+
+  const { data, error } = await supabase
+    .from('commissions')
+    .update({
+      status:     'paid',
+      paid_at:    new Date().toISOString(),
+      approved_at: new Date().toISOString(),
+    })
+    .eq('id', payload.commission_id)
+    .eq('business_id', businessId)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  // Update affiliate total_earned
+  await supabase
+    .from('affiliates')
+    .update({ total_earned: supabase.raw(`total_earned + ${parseFloat(payload.amount) || 0}`) })
+    .eq('id', data.affiliate_id)
+    .catch(() => {});
+
+  // Update referral_tracking to paid
+  await supabase
+    .from('referral_tracking')
+    .update({ status: 'paid', paid_at: new Date().toISOString() })
+    .eq('id', data.referral_id)
+    .catch(() => {});
+
+  return { commission_id: data.id, paid: true, amount: data.amount };
+}

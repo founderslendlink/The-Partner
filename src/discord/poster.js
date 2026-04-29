@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { logger } = require('../utils/logger');
+const { db } = require('../utils/supabase');
 
 // Channel name → env var mapping
 const CHANNEL_MAP = {
@@ -14,8 +15,28 @@ const CHANNEL_MAP = {
 };
 
 /**
+ * Write a notification row so the dashboard receives it in realtime.
+ * Non-fatal — a failure here never blocks Discord posting.
+ */
+async function writeNotification(businessId, type, title, message, severity = 'medium') {
+  if (!businessId) return;
+  try {
+    await db().from('notifications').insert({
+      business_id: businessId,
+      type,
+      title,
+      message,
+      severity,
+    });
+  } catch (err) {
+    logger.debug('writeNotification failed (non-fatal):', err.message);
+  }
+}
+
+/**
  * Post a message to a Discord channel via webhook or bot API.
  * Uses bot token + channel ID approach.
+ * Also writes a notification row for the dashboard.
  */
 async function postToDiscord(businessId, channelKey, content) {
   const envKey = CHANNEL_MAP[channelKey];
@@ -32,6 +53,16 @@ async function postToDiscord(businessId, channelKey, content) {
 
   const token = process.env.DISCORD_BOT_TOKEN;
   if (!token) return;
+
+  // Write to notifications table so dashboard receives it via realtime
+  const severityMap = { alerts: 'high', system: 'medium', decisions: 'low', approvals: 'high' };
+  await writeNotification(
+    businessId,
+    `discord.${channelKey}`,
+    `Discord: ${channelKey}`,
+    content.slice(0, 500),
+    severityMap[channelKey] || 'medium'
+  );
 
   try {
     await axios.post(
@@ -50,4 +81,4 @@ async function postToDiscord(businessId, channelKey, content) {
   }
 }
 
-module.exports = { postToDiscord };
+module.exports = { postToDiscord, writeNotification };
