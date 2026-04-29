@@ -47,3 +47,57 @@ export function updateOperatorMode(businessId: string, mode: string) {
     body: JSON.stringify({ mode }),
   });
 }
+
+export function getIntegrationStatus(businessId: string) {
+  return request(`/api/integrations/status?businessId=${businessId}`);
+}
+
+export function connectEmail(payload: {
+  businessId: string; provider: string; apiKey?: string;
+  smtpHost?: string; smtpPort?: number; smtpUser?: string; smtpPass?: string;
+  fromEmail: string; fromName: string;
+}) {
+  return request('/api/integrations/email/connect', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function testEmail(businessId: string, to: string) {
+  return request('/api/integrations/email/test', { method: 'POST', body: JSON.stringify({ businessId, to }) });
+}
+
+export function connectSMS(payload: {
+  businessId: string; accountSid: string; authToken: string; phoneNumber: string;
+}) {
+  return request('/api/integrations/sms/connect', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function testSMS(businessId: string, to: string) {
+  return request('/api/integrations/sms/test', { method: 'POST', body: JSON.stringify({ businessId, to }) });
+}
+
+export function getAutomations(businessId: string) {
+  return request(`/api/automations?businessId=${businessId}`);
+}
+
+export function createAutomation(payload: object) {
+  return request('/api/automations', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function updateAutomation(id: string, payload: object) {
+  return request(`/api/automations/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+}
+
+export function deleteAutomation(id: string) {
+  return request(`/api/automations/${id}`, { method: 'DELETE' });
+}
+
+export function toggleAutomation(id: string) {
+  return request(`/api/automations/${id}/toggle`, { method: 'POST' });
+}
+
+export function testAutomation(id: string, businessId: string, leadId?: string) {
+  return request(`/api/automations/${id}/test`, { method: 'POST', body: JSON.stringify({ businessId, leadId }) });
+}
+
+export function getAutomationRuns(id: string) {
+  return request(`/api/automations/${id}/runs`);
+}

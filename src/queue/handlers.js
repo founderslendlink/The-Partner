@@ -337,10 +337,16 @@ const handlers = {
   post_facebook:          handle_post_facebook,
   schedule_post:          handle_schedule_post,
   get_post_performance:   handle_get_post_performance,
-  // Email (Priority 3)
+  // Email (Priority 1A)
   send_email:             handle_send_email,
   send_campaign:          handle_send_campaign,
   create_email_sequence:  handle_create_email_sequence,
+  // SMS (Priority 1B)
+  send_sms:               handle_send_sms,
+  // Calendar/Meetings (Priority 2)
+  book_meeting:           handle_book_meeting,
+  get_availability:       handle_get_availability,
+  send_meeting_briefing:  handle_send_meeting_briefing,
   // Referral (Priority 4)
   send_referral_request:  handle_send_referral_request,
   create_affiliate:       handle_create_affiliate,
@@ -428,6 +434,52 @@ async function handle_create_email_sequence(payload, businessId) {
   }
 
   return { sequence: payload.sequence_name, jobs_created: jobs.length };
+}
+
+// ── SMS Actions (Priority 1B) ─────────────────────────────────────────────────
+
+async function handle_send_sms(payload, businessId) {
+  const { sendSMS } = require('../integrations/sms');
+  return sendSMS({
+    to:         payload.to,
+    message:    payload.message || payload.body,
+    businessId,
+    leadId:     payload.lead_id || null,
+  });
+}
+
+// ── Calendar / Meeting Actions (Priority 2) ───────────────────────────────────
+
+async function handle_book_meeting(payload, businessId) {
+  const { createEvent } = require('../integrations/calendar');
+  return createEvent({
+    businessId,
+    title:         payload.title,
+    start:         payload.start,
+    end:           payload.end,
+    attendeeEmail: payload.attendee_email,
+    attendeeName:  payload.attendee_name,
+    description:   payload.description || '',
+    leadId:        payload.lead_id || null,
+    opportunityId: payload.opportunity_id || null,
+  });
+}
+
+async function handle_get_availability(payload, businessId) {
+  const { getAvailableSlots } = require('../integrations/calendar');
+  return getAvailableSlots({
+    businessId,
+    dateRange: payload.date_range || { start: new Date().toISOString(), end: new Date(Date.now() + 7 * 86400000).toISOString() },
+    duration:  payload.duration || 60,
+  });
+}
+
+async function handle_send_meeting_briefing(payload, businessId) {
+  const { getMeetingBriefing } = require('../integrations/calendar');
+  const { sendTelegramAlert } = require('../telegram/sender');
+  const briefing = await getMeetingBriefing({ businessId, eventId: payload.event_id, meetingId: payload.meeting_id });
+  await sendTelegramAlert(businessId, briefing);
+  return { sent: true };
 }
 
 // ── Referral Actions (Priority 4) ────────────────────────────────────────────

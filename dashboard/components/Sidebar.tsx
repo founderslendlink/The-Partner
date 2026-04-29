@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard, TrendingUp, Users, BookOpen, BarChart2, Settings, LogOut, Zap,
+  LayoutDashboard, TrendingUp, Users, BookOpen, BarChart2, Settings, LogOut, Zap, GitBranch,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import { useBusiness } from '@/lib/business-context';
@@ -10,6 +10,7 @@ import { useBusiness } from '@/lib/business-context';
 const NAV = [
   { href: '/',             label: 'Command Center', icon: LayoutDashboard },
   { href: '/pipeline',     label: 'Pipeline',       icon: TrendingUp },
+  { href: '/automations',  label: 'Automations',    icon: GitBranch },
   { href: '/contacts',     label: 'Contacts',       icon: Users },
   { href: '/content',      label: 'Content Studio', icon: BookOpen },
   { href: '/intelligence', label: 'Intelligence',   icon: BarChart2 },

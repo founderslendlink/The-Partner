@@ -204,6 +204,9 @@ async function runStrategyChecks(businessId, bizName) {
   // Referral checks (Priority 4)
   await runReferralChecks(businessId);
 
+  // Meeting briefings (Priority 2)
+  await runMeetingBriefings(businessId);
+
   await logHeartbeatCheck(businessId, 'strategy', alerts.length);
 }
 
@@ -384,6 +387,49 @@ async function runReferralChecks(businessId) {
       `Total: $${totalOwed.toFixed(2)} | Oldest: ${pendingCommissions[0].created_at?.split('T')[0]}\n` +
       `Review and pay via /approvals or Settings → Integrations`
     );
+  }
+}
+
+// ── Meeting Briefings (daily, Priority 2) ────────────────────────────────────
+
+async function runMeetingBriefings(businessId) {
+  const supabase = db();
+  const now = new Date();
+  const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+
+  // Find meetings in next 24 hours that haven't had a briefing sent
+  const { data: upcomingMeetings } = await supabase
+    .from('meetings')
+    .select('id,title,start_time,lead_id,platform_event_id')
+    .eq('business_id', businessId)
+    .eq('status', 'scheduled')
+    .eq('briefing_sent', false)
+    .gte('start_time', now.toISOString())
+    .lte('start_time', in24h);
+
+  if (!upcomingMeetings || upcomingMeetings.length === 0) return;
+
+  const { getMeetingBriefing } = require('../integrations/calendar');
+
+  for (const meeting of upcomingMeetings) {
+    try {
+      const briefing = await getMeetingBriefing({
+        businessId,
+        eventId: meeting.platform_event_id,
+        meetingId: meeting.id,
+      });
+
+      await sendTelegramAlert(businessId, briefing);
+
+      await supabase
+        .from('meetings')
+        .update({ briefing_sent: true })
+        .eq('id', meeting.id);
+
+      logger.info(`Meeting briefing sent for meeting ${meeting.id}`);
+    } catch (err) {
+      logger.warn(`Meeting briefing failed for ${meeting.id}:`, err.message);
+    }
   }
 }
 

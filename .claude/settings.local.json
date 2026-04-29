@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm start *)",
+      "Bash(npm install *)",
+      "Bash(echo \"Backend PID: $!\")",
+      "Bash(npm run *)",
+      "Bash(echo \"Dashboard PID: $!\")",
+      "Bash(node scripts/seed.js)",
+      "Bash(node -e ' *)",
+      "Bash(timeout 12 node src/index.js)",
+      "Bash(npx --yes kill-port 3000)",
+      "Bash(netstat -ano)",
+      "Bash(findstr :3000)",
+      "Bash(timeout 10 node src/index.js)",
+      "Bash(Remove-Item -Recurse -Force \"c:\\\\Users\\\\peter\\\\OneDrive\\\\Agents\\\\the-partner.v2\\\\dashboard\\\\.next\" -ErrorAction SilentlyContinue)",
+      "Bash(Write-Host \"Cleared .next\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(timeout 8 node src/index.js)",
+      "Bash(ANTHROPIC_API_KEY=\"\" GEMINI_API_KEY=\"\" timeout 8 node src/index.js)"
+    ]
+  }
+}

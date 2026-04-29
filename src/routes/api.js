@@ -237,6 +237,255 @@ router.patch('/businesses/:id', async (req, res) => {
   res.json({ success: true });
 });
 
+// ── POST /api/integrations/email/connect ─────────────────────────────────────
+router.post('/integrations/email/connect', async (req, res) => {
+  const { businessId, provider, apiKey, smtpHost, smtpPort, smtpUser, smtpPass, fromEmail, fromName } = req.body;
+  if (!businessId || !provider || !fromEmail || !fromName) {
+    return res.status(400).json({ error: 'businessId, provider, fromEmail, and fromName are required' });
+  }
+
+  const supabase = db();
+  const row = {
+    business_id: businessId,
+    provider,
+    from_email:  fromEmail,
+    from_name:   fromName,
+    api_key:     apiKey || null,
+    smtp_host:   smtpHost || null,
+    smtp_port:   smtpPort ? parseInt(smtpPort) : null,
+    smtp_user:   smtpUser || null,
+    smtp_pass:   smtpPass || null,
+    connected_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase
+    .from('email_connections')
+    .upsert(row, { onConflict: 'business_id,provider' });
+
+  if (error) {
+    logger.error('Email connect error:', JSON.stringify(error));
+    return res.status(500).json({ error: error.message });
+  }
+  res.json({ success: true });
+});
+
+// ── POST /api/integrations/email/test ────────────────────────────────────────
+router.post('/integrations/email/test', async (req, res) => {
+  const { businessId, to } = req.body;
+  if (!businessId || !to) return res.status(400).json({ error: 'businessId and to are required' });
+
+  try {
+    const { sendEmail } = require('../integrations/email');
+    const result = await sendEmail({
+      to,
+      subject: 'Test email from The Partner',
+      body: '<p>This is a test email sent from <strong>The Partner</strong>. Your email integration is working correctly.</p>',
+      businessId,
+      leadId: null,
+    });
+    res.json(result);
+  } catch (err) {
+    logger.error('Email test error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/integrations/sms/connect ───────────────────────────────────────
+router.post('/integrations/sms/connect', async (req, res) => {
+  const { businessId, accountSid, authToken, phoneNumber } = req.body;
+  if (!businessId || !accountSid || !authToken || !phoneNumber) {
+    return res.status(400).json({ error: 'businessId, accountSid, authToken, and phoneNumber are required' });
+  }
+
+  const supabase = db();
+  const { error } = await supabase
+    .from('sms_connections')
+    .upsert({
+      business_id:  businessId,
+      account_sid:  accountSid,
+      auth_token:   authToken,
+      phone_number: phoneNumber,
+      connected_at: new Date().toISOString(),
+    }, { onConflict: 'business_id' });
+
+  if (error) {
+    logger.error('SMS connect error:', JSON.stringify(error));
+    return res.status(500).json({ error: error.message });
+  }
+  res.json({ success: true });
+});
+
+// ── POST /api/integrations/sms/test ──────────────────────────────────────────
+router.post('/integrations/sms/test', async (req, res) => {
+  const { businessId, to } = req.body;
+  if (!businessId || !to) return res.status(400).json({ error: 'businessId and to are required' });
+
+  try {
+    const { sendSMS } = require('../integrations/sms');
+    const result = await sendSMS({
+      to,
+      message: 'Test SMS from The Partner — your SMS integration is working!',
+      businessId,
+      leadId: null,
+    });
+    res.json(result);
+  } catch (err) {
+    logger.error('SMS test error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/integrations/status ──────────────────────────────────────────────
+router.get('/integrations/status', async (req, res) => {
+  const { businessId } = req.query;
+  if (!businessId) return res.status(400).json({ error: 'businessId is required' });
+
+  const supabase = db();
+  const [emailRes, smsRes, calendarRes] = await Promise.all([
+    supabase.from('email_connections').select('provider,from_email,connected_at').eq('business_id', businessId).limit(1),
+    supabase.from('sms_connections').select('phone_number,connected_at').eq('business_id', businessId).limit(1),
+    supabase.from('calendar_connections').select('provider,calendar_id,connected_at').eq('business_id', businessId).limit(1),
+  ]);
+
+  res.json({
+    email:    emailRes.data?.[0] || null,
+    sms:      smsRes.data?.[0] || null,
+    calendar: calendarRes.data?.[0] || null,
+  });
+});
+
+// ── Automation Routes ─────────────────────────────────────────────────────────
+
+// GET /api/automations?businessId=
+router.get('/automations', async (req, res) => {
+  const { businessId } = req.query;
+  if (!businessId) return res.status(400).json({ error: 'businessId is required' });
+
+  const supabase = db();
+  const { data, error } = await supabase
+    .from('automations')
+    .select('*')
+    .eq('business_id', businessId)
+    .order('created_at', { ascending: false });
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || []);
+});
+
+// POST /api/automations
+router.post('/automations', async (req, res) => {
+  const { business_id, name, description, trigger_type, trigger_conditions, steps } = req.body;
+  if (!business_id || !name || !trigger_type) {
+    return res.status(400).json({ error: 'business_id, name, and trigger_type are required' });
+  }
+
+  const supabase = db();
+  const { data, error } = await supabase
+    .from('automations')
+    .insert({
+      business_id,
+      name,
+      description: description || null,
+      trigger_type,
+      trigger_conditions: trigger_conditions || {},
+      steps: steps || [],
+      active: true,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    logger.error('Create automation error:', JSON.stringify(error));
+    return res.status(500).json({ error: error.message });
+  }
+  res.status(201).json(data);
+});
+
+// PUT /api/automations/:id
+router.put('/automations/:id', async (req, res) => {
+  const { name, description, trigger_type, trigger_conditions, steps, active } = req.body;
+  const supabase = db();
+
+  const updates = { updated_at: new Date().toISOString() };
+  if (name !== undefined) updates.name = name;
+  if (description !== undefined) updates.description = description;
+  if (trigger_type !== undefined) updates.trigger_type = trigger_type;
+  if (trigger_conditions !== undefined) updates.trigger_conditions = trigger_conditions;
+  if (steps !== undefined) updates.steps = steps;
+  if (active !== undefined) updates.active = active;
+
+  const { data, error } = await supabase
+    .from('automations')
+    .update(updates)
+    .eq('id', req.params.id)
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// DELETE /api/automations/:id
+router.delete('/automations/:id', async (req, res) => {
+  const supabase = db();
+  const { error } = await supabase.from('automations').delete().eq('id', req.params.id);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
+});
+
+// POST /api/automations/:id/toggle
+router.post('/automations/:id/toggle', async (req, res) => {
+  const supabase = db();
+  const { data: current } = await supabase
+    .from('automations').select('active').eq('id', req.params.id).single();
+  if (!current) return res.status(404).json({ error: 'Automation not found' });
+
+  const { data, error } = await supabase
+    .from('automations')
+    .update({ active: !current.active, updated_at: new Date().toISOString() })
+    .eq('id', req.params.id)
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ active: data.active });
+});
+
+// POST /api/automations/:id/test
+router.post('/automations/:id/test', async (req, res) => {
+  const { businessId, leadId } = req.body;
+  if (!businessId) return res.status(400).json({ error: 'businessId is required' });
+
+  try {
+    const { runAutomation } = require('../automation/engine');
+    const run = await runAutomation({
+      automationId: req.params.id,
+      businessId,
+      triggerEntityType: 'lead',
+      triggerEntityId: leadId || null,
+      testMode: true,
+    });
+    res.json(run);
+  } catch (err) {
+    logger.error('Automation test error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/automations/:id/runs
+router.get('/automations/:id/runs', async (req, res) => {
+  const supabase = db();
+  const { data, error } = await supabase
+    .from('automation_runs')
+    .select('*')
+    .eq('automation_id', req.params.id)
+    .order('started_at', { ascending: false })
+    .limit(20);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || []);
+});
+
 // ── POST /api/opportunities ───────────────────────────────────────────────────
 router.post('/opportunities', async (req, res) => {
   const { business_id, name, value, lead_id, stage, close_date } = req.body;

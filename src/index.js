@@ -8,6 +8,7 @@ const { startDailyBriefing } = require('./discord/briefing');
 const telegramRoutes = require('./routes/telegram');
 const healthRoutes = require('./routes/health');
 const apiRoutes = require('./routes/api');
+const oauthRoutes = require('./routes/oauth');
 
 const app = express();
 app.use(express.json());
@@ -16,6 +17,7 @@ app.use(express.json());
 app.use('/webhook/telegram', telegramRoutes);
 app.use('/health', healthRoutes);
 app.use('/api', apiRoutes);
+app.use('/oauth', oauthRoutes);
 
 // ── Boot sequence ─────────────────────────────────────────────────────────────
 async function boot() {
@@ -56,6 +58,10 @@ async function boot() {
   startDailyBriefing();
   logger.info('Daily briefing scheduler started.');
 
+  // Start automation event processor (every 30 seconds)
+  startEventProcessor();
+  logger.info('Automation event processor started.');
+
   // Start HTTP server
   const port = process.env.PORT || 3000;
   app.listen(port, () => {
@@ -63,6 +69,47 @@ async function boot() {
     logger.info(`Telegram webhook: POST /webhook/telegram`);
     logger.info(`Health check:     GET  /health`);
   });
+}
+
+function startEventProcessor() {
+  const { db: getDb } = require('./utils/supabase');
+  const { checkTriggers, resumeWaitingRuns } = require('./automation/engine');
+
+  setInterval(async () => {
+    try {
+      const supabase = getDb();
+
+      // Resume waiting automation runs whose delay has elapsed
+      await resumeWaitingRuns();
+
+      // Process new unprocessed events
+      const { data: events } = await supabase
+        .from('events')
+        .select('id,business_id,type,entity_type,entity_id')
+        .eq('processed', false)
+        .order('created_at', { ascending: true })
+        .limit(20);
+
+      if (!events || events.length === 0) return;
+
+      for (const event of events) {
+        try {
+          await checkTriggers({
+            businessId:  event.business_id,
+            eventType:   event.type,
+            entityType:  event.entity_type,
+            entityId:    event.entity_id,
+          });
+          await supabase.from('events').update({ processed: true }).eq('id', event.id);
+        } catch (err) {
+          logger.warn(`Event processor error for event ${event.id}:`, err.message);
+          await supabase.from('events').update({ processed: true }).eq('id', event.id);
+        }
+      }
+    } catch (err) {
+      logger.error('Event processor cycle error:', err.message);
+    }
+  }, 30000);
 }
 
 boot().catch(err => {
