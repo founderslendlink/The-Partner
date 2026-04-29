@@ -20,8 +20,10 @@ const CHANNEL_MAP = {
   decisions:  'DISCORD_CHANNEL_DECISIONS',
   insights:   'DISCORD_CHANNEL_INSIGHTS',
   system:     'DISCORD_CHANNEL_SYSTEM',
-  errors:     'DISCORD_CHANNEL_ERRORS',
-  audit:      'DISCORD_CHANNEL_AUDIT',
+  errors:           'DISCORD_CHANNEL_ERRORS',
+  audit:            'DISCORD_CHANNEL_AUDIT',
+  content_calendar: 'DISCORD_CHANNEL_CONTENT_CALENDAR',
+  social_posts:     'DISCORD_CHANNEL_SOCIAL_POSTS',
 };
 
 /**
