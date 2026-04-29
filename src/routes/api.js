@@ -17,11 +17,8 @@ const { decomposeTask } = require('../decomposition/decompose');
 // ── CORS for dashboard ────────────────────────────────────────────────────────
 router.use((req, res, next) => {
   const origin = req.headers.origin;
-  const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:3001';
-  if (!origin || origin === dashboardUrl || origin === 'http://localhost:3001') {
-    res.setHeader('Access-Control-Allow-Origin', origin || dashboardUrl);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-  }
+  res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();

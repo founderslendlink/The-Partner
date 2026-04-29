@@ -22,9 +22,10 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
       .select('id,name,mode,operator_mode,timezone')
       .eq('active', true)
       .limit(1)
-      .single()
-      .then(({ data }) => {
-        if (data) setBusiness(data as Business);
+      .then(({ data, error }) => {
+        if (error) console.error('[BusinessContext] Failed to load business:', error);
+        else if (data && data.length > 0) setBusiness(data[0] as Business);
+        else console.warn('[BusinessContext] No active business found in database');
       });
   }, []);
 
