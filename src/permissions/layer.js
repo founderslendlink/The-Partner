@@ -1,5 +1,6 @@
 const { db } = require('../utils/supabase');
 const { logger } = require('../utils/logger');
+const { postToDiscord } = require('../discord/poster');
 
 // These action types are ALWAYS blocked regardless of any rule configuration.
 const HARDCODED_BLOCKED = new Set([
@@ -113,6 +114,20 @@ async function processProposedActions(businessId, proposedActions, confidence = 
     } else {
       auto.push({ ...action, operator_mode: result.operator_mode });
     }
+  }
+
+  if (needsApproval.length > 0) {
+    await postToDiscord(businessId, 'approvals',
+      `⏳ **${needsApproval.length} action(s) queued for approval**\n` +
+      needsApproval.map(a => `• \`${a.action_type}\` — ${a.approval_reason || 'requires approval'}`).join('\n')
+    ).catch(() => {});
+  }
+
+  if (blocked.length > 0) {
+    await postToDiscord(businessId, 'approvals',
+      `🚫 **${blocked.length} action(s) blocked**\n` +
+      blocked.map(a => `• \`${a.action_type}\` — ${a.block_reason}`).join('\n')
+    ).catch(() => {});
   }
 
   return { auto_actions: auto, approval_actions: needsApproval, blocked_actions: blocked };

@@ -2,6 +2,7 @@ const { db } = require('../utils/supabase');
 const { logger } = require('../utils/logger');
 const { writeAuditLog } = require('../utils/audit');
 const { routeAndExecute } = require('../execution/router'); // V2: execution router
+const { postToDiscord } = require('../discord/poster');
 
 const POLL_INTERVAL = parseInt(process.env.ACTION_QUEUE_POLL_INTERVAL_MS || '10000');
 const WORKER_ID     = `worker-${process.pid}`;
@@ -95,6 +96,10 @@ async function processAction(action) {
       output:      { result, execution_target: action.execution_target || 'api' }, // V2: log target
     });
 
+    await postToDiscord(action.business_id, 'audit',
+      `✅ **Action executed**: \`${action.action_type}\` [${action.id.slice(0, 8)}]\nTarget: ${action.execution_target || 'api'}`
+    ).catch(() => {});
+
     logger.info(`Action completed: ${action.action_type} [${action.id}]`);
 
   } catch (err) {
@@ -143,6 +148,10 @@ async function handleFailure(action, err) {
       business_id: action.business_id, action_id: action.id,
       result: 'completed_failure', reward_score: -0.8,
     }).catch(() => {});
+
+    await postToDiscord(action.business_id, 'errors',
+      `🔴 **Action failed permanently**: \`${action.action_type}\` [${action.id.slice(0, 8)}]\nError: ${err.message}\nTarget: ${action.execution_target || 'api'}`
+    ).catch(() => {});
 
     const { sendTelegramAlert } = require('../telegram/sender');
     await sendTelegramAlert(action.business_id,

@@ -1,6 +1,7 @@
 const { db } = require('../utils/supabase');
 const { createEmbedding } = require('../utils/ai');
 const { logger } = require('../utils/logger');
+const { postToDiscord } = require('../discord/poster');
 
 /**
  * Write a new memory entry (Tier 2) and queue its embedding (Tier 3).
@@ -45,6 +46,10 @@ async function writeMemory(businessId, { type, content, importance = 5, source =
 
   // Generate and store embedding asynchronously (non-blocking)
   embedMemoryAsync(entry.id, content);
+
+  await postToDiscord(businessId, 'memory',
+    `🧠 **Memory written** [${type}] (importance: ${importance})\n${content.slice(0, 200)}`
+  ).catch(() => {});
 
   return entry;
 }

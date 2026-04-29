@@ -199,7 +199,7 @@ async function runStrategyChecks(businessId, bizName) {
     digest += `✅ No strategic alerts.`;
   }
 
-  await postToDiscord(businessId, 'alerts', digest);
+  await postToDiscord(businessId, 'insights', digest);
 
   // Referral checks (Priority 4)
   await runReferralChecks(businessId);

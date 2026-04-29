@@ -4,14 +4,24 @@ const { db } = require('../utils/supabase');
 
 // Channel name → env var mapping
 const CHANNEL_MAP = {
-  alerts:    'DISCORD_CHANNEL_ALERTS',
-  briefing:  'DISCORD_CHANNEL_BRIEFING',
-  pipeline:  'DISCORD_CHANNEL_PIPELINE',
-  reports:   'DISCORD_CHANNEL_REPORTS',
-  memory:    'DISCORD_CHANNEL_MEMORY',
-  system:    'DISCORD_CHANNEL_SYSTEM',
-  decisions: 'DISCORD_CHANNEL_DECISIONS',
-  approvals: 'DISCORD_CHANNEL_APPROVALS',
+  briefing:   'DISCORD_CHANNEL_BRIEFING',
+  alerts:     'DISCORD_CHANNEL_ALERTS',
+  approvals:  'DISCORD_CHANNEL_APPROVALS',
+  pipeline:   'DISCORD_CHANNEL_PIPELINE',
+  deals_won:  'DISCORD_CHANNEL_DEALS_WON',
+  deals_lost: 'DISCORD_CHANNEL_DEALS_LOST',
+  content:    'DISCORD_CHANNEL_CONTENT',
+  campaigns:  'DISCORD_CHANNEL_CAMPAIGNS',
+  social:     'DISCORD_CHANNEL_SOCIAL',
+  reports:    'DISCORD_CHANNEL_REPORTS',
+  revenue:    'DISCORD_CHANNEL_REVENUE',
+  metrics:    'DISCORD_CHANNEL_METRICS',
+  memory:     'DISCORD_CHANNEL_MEMORY',
+  decisions:  'DISCORD_CHANNEL_DECISIONS',
+  insights:   'DISCORD_CHANNEL_INSIGHTS',
+  system:     'DISCORD_CHANNEL_SYSTEM',
+  errors:     'DISCORD_CHANNEL_ERRORS',
+  audit:      'DISCORD_CHANNEL_AUDIT',
 };
 
 /**

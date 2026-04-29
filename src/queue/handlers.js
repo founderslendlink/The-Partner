@@ -95,7 +95,10 @@ async function handle_advance_opp_stage(payload, businessId) {
     payload: { from: payload.from_stage, to: payload.new_stage },
   });
 
-  await postToDiscord(businessId, 'pipeline',
+  const dealChannel = data.stage === 'won'  ? 'deals_won'
+                    : data.stage === 'lost' ? 'deals_lost'
+                    : 'pipeline';
+  await postToDiscord(businessId, dealChannel,
     `📈 **Deal advanced**: ${data.name}\n` +
     `${payload.from_stage} → ${payload.new_stage} | $${data.value}`
   );
