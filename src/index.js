@@ -21,6 +21,21 @@ app.use('/api', apiRoutes);
 async function boot() {
   logger.info('The Partner is starting up...');
 
+  // AI provider availability check
+  if (process.env.ANTHROPIC_API_KEY) {
+    logger.info('AI provider: Anthropic Claude (primary)');
+  } else {
+    logger.warn('Anthropic API key not set');
+  }
+  if (process.env.GEMINI_API_KEY) {
+    logger.info('AI provider: Google Gemini (available as fallback)');
+  } else {
+    logger.warn('Gemini API key not set');
+  }
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY) {
+    logger.error('CRITICAL: No AI provider configured. AI features will not work.');
+  }
+
   // Verify Supabase connection
   const db = initSupabase();
   const { error } = await db.from('businesses').select('id').limit(1);
