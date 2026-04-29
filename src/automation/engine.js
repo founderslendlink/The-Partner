@@ -103,20 +103,24 @@ async function runAutomation({ automationId, businessId, triggerEntityType, trig
     }
 
     // Increment run count
-    await supabase.from('automations').update({
-      run_count:   supabase.rpc ? automation.run_count + 1 : automation.run_count + 1,
-      last_run_at: new Date().toISOString(),
-    }).eq('id', automationId).catch(() => {});
+    try {
+      await supabase.from('automations').update({
+        run_count:   supabase.rpc ? automation.run_count + 1 : automation.run_count + 1,
+        last_run_at: new Date().toISOString(),
+      }).eq('id', automationId);
+    } catch (e) {}
 
     return { status: 'completed', steps: results };
   } catch (err) {
     logger.error(`Automation ${automationId} failed:`, err.message);
     if (runId) {
-      await supabase.from('automation_runs').update({
-        status:       'failed',
-        error:        err.message,
-        completed_at: new Date().toISOString(),
-      }).eq('id', runId).catch(() => {});
+      try {
+        await supabase.from('automation_runs').update({
+          status:       'failed',
+          error:        err.message,
+          completed_at: new Date().toISOString(),
+        }).eq('id', runId);
+      } catch (e) {}
     }
     throw err;
   }
@@ -369,9 +373,11 @@ async function resumeWaitingRuns() {
       }).eq('id', run.id);
     } catch (err) {
       logger.error(`Failed to resume automation run ${run.id}:`, err.message);
-      await supabase.from('automation_runs')
-        .update({ status: 'failed', error: err.message, completed_at: new Date().toISOString() })
-        .eq('id', run.id).catch(() => {});
+      try {
+        await supabase.from('automation_runs')
+          .update({ status: 'failed', error: err.message, completed_at: new Date().toISOString() })
+          .eq('id', run.id);
+      } catch (e) {}
     }
   }
 }

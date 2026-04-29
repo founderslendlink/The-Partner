@@ -40,14 +40,15 @@ async function getConnection(businessId) {
         access_token:     refreshed.access_token,
         token_expires_at: new Date(Date.now() + refreshed.expires_in * 1000).toISOString(),
       };
-      await supabase
-        .from('calendar_connections')
-        .update({
-          access_token:     updatedConn.access_token,
-          token_expires_at: updatedConn.token_expires_at,
-        })
-        .eq('id', data.id)
-        .catch(() => {});
+      try {
+        await supabase
+          .from('calendar_connections')
+          .update({
+            access_token:     updatedConn.access_token,
+            token_expires_at: updatedConn.token_expires_at,
+          })
+          .eq('id', data.id);
+      } catch (e) {}
       return updatedConn;
     } catch (err) {
       logger.warn('Calendar token refresh failed:', err.message);
@@ -176,31 +177,36 @@ async function createEvent({ businessId, title, start, end, attendeeEmail, atten
 
   // Save meeting record
   const supabase = db();
-  const { data: meeting } = await supabase
-    .from('meetings')
-    .insert({
-      business_id:       businessId,
-      lead_id:           leadId || null,
-      opportunity_id:    opportunityId || null,
-      title,
-      start_time:        start,
-      end_time:          end,
-      platform_event_id: created.id,
-      meeting_link:      meetingLink,
-      status:            'scheduled',
-    })
-    .select()
-    .single()
-    .catch(() => ({ data: null }));
+  let meeting = null;
+  try {
+    const { data } = await supabase
+      .from('meetings')
+      .insert({
+        business_id:       businessId,
+        lead_id:           leadId || null,
+        opportunity_id:    opportunityId || null,
+        title,
+        start_time:        start,
+        end_time:          end,
+        platform_event_id: created.id,
+        meeting_link:      meetingLink,
+        status:            'scheduled',
+      })
+      .select()
+      .single();
+    meeting = data;
+  } catch (e) {}
 
   // Emit event
-  await supabase.from('events').insert({
-    business_id: businessId,
-    type: 'meeting.booked',
-    entity_type: 'meeting',
-    entity_id: meeting?.id || null,
-    payload: { title, start, end, attendeeEmail, lead_id: leadId },
-  }).catch(() => {});
+  try {
+    await supabase.from('events').insert({
+      business_id: businessId,
+      type: 'meeting.booked',
+      entity_type: 'meeting',
+      entity_id: meeting?.id || null,
+      payload: { title, start, end, attendeeEmail, lead_id: leadId },
+    });
+  } catch (e) {}
 
   logger.info(`Calendar event created: ${created.id}`);
   return { event_id: created.id, meeting_link: meetingLink, meeting_id: meeting?.id };

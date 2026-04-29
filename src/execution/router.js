@@ -76,10 +76,11 @@ async function routeAndExecute(action) {
           result = await executeBrowser({ ...action, tool_name: tool.fallback_tool }, fallbackTool);
           success = true;
           // Update action record to reflect actual execution target
-          await db().from('action_queue')
-            .update({ execution_target: 'browser' })
-            .eq('id', action.id)
-            .catch(() => {});
+          try {
+            await db().from('action_queue')
+              .update({ execution_target: 'browser' })
+              .eq('id', action.id);
+          } catch (e) {}
         }
       } catch (fallbackErr) {
         logger.error(`Fallback also failed: ${fallbackErr.message}`);
@@ -219,10 +220,11 @@ async function executeBrowser(action, tool) {
 
       // Update session with progress
       if (sessionId) {
-        await supabase.from('browser_sessions')
-          .update({ steps: completedSteps })
-          .eq('id', sessionId)
-          .catch(() => {});
+        try {
+          await supabase.from('browser_sessions')
+            .update({ steps: completedSteps })
+            .eq('id', sessionId);
+        } catch (e) {}
       }
     }
 
@@ -230,22 +232,26 @@ async function executeBrowser(action, tool) {
 
     // Mark session complete
     if (sessionId) {
-      await supabase.from('browser_sessions').update({
-        status: 'completed',
-        result,
-        completed_at: new Date().toISOString(),
-      }).eq('id', sessionId).catch(() => {});
+      try {
+        await supabase.from('browser_sessions').update({
+          status: 'completed',
+          result,
+          completed_at: new Date().toISOString(),
+        }).eq('id', sessionId);
+      } catch (e) {}
     }
 
     return { ...result, browser_session_id: sessionId, steps_completed: completedSteps.length };
 
   } catch (err) {
     if (sessionId) {
-      await supabase.from('browser_sessions').update({
-        status: 'failed',
-        error: err.message,
-        completed_at: new Date().toISOString(),
-      }).eq('id', sessionId).catch(() => {});
+      try {
+        await supabase.from('browser_sessions').update({
+          status: 'failed',
+          error: err.message,
+          completed_at: new Date().toISOString(),
+        }).eq('id', sessionId);
+      } catch (e) {}
     }
     throw err;
   }

@@ -117,17 +117,19 @@ async function decomposeTask({ businessId, task, sessionId, context }) {
   // Persist decomposition record
   const decompositionId = uuidv4();
   const supabase = db();
-  await supabase.from('task_decompositions').insert({
-    id:             decompositionId,
-    business_id:    businessId,
-    session_id:     sessionId || null,
-    original_task:  task,
-    subtasks:       subtasks,
-    status:         'in_progress',
-    agent:          'ceo',
-    total_subtasks: subtasks.length,
-    done_subtasks:  0,
-  }).catch(() => {});
+  try {
+    await supabase.from('task_decompositions').insert({
+      id:             decompositionId,
+      business_id:    businessId,
+      session_id:     sessionId || null,
+      original_task:  task,
+      subtasks:       subtasks,
+      status:         'in_progress',
+      agent:          'ceo',
+      total_subtasks: subtasks.length,
+      done_subtasks:  0,
+    });
+  } catch (e) {}
 
   return {
     decompositionId,
@@ -155,10 +157,12 @@ async function markSubtaskComplete(decompositionId, subtaskId) {
   const newDone = data.done_subtasks + 1;
   const isComplete = newDone >= data.total_subtasks;
 
-  await supabase.from('task_decompositions').update({
-    done_subtasks: newDone,
-    status: isComplete ? 'completed' : 'in_progress',
-  }).eq('id', decompositionId).catch(() => {});
+  try {
+    await supabase.from('task_decompositions').update({
+      done_subtasks: newDone,
+      status: isComplete ? 'completed' : 'in_progress',
+    }).eq('id', decompositionId);
+  } catch (e) {}
 }
 
 /**

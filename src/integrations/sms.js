@@ -55,21 +55,24 @@ async function sendSMS({ to, message, businessId, leadId }) {
   const sid = res.data.sid;
 
   const supabase = db();
-  await supabase.from('interactions').insert({
-    business_id: businessId,
-    lead_id:     leadId || null,
-    channel:     'sms',
-    direction:   'outbound',
-    content:     message,
-    metadata:    { to, sid },
-  }).catch(() => {});
+  try {
+    await supabase.from('interactions').insert({
+      business_id: businessId,
+      lead_id:     leadId || null,
+      channel:     'sms',
+      direction:   'outbound',
+      content:     message,
+      metadata:    { to, sid },
+    });
+  } catch (e) {}
 
   if (leadId) {
-    await supabase
-      .from('leads')
-      .update({ last_contacted_at: new Date().toISOString() })
-      .eq('id', leadId)
-      .catch(() => {});
+    try {
+      await supabase
+        .from('leads')
+        .update({ last_contacted_at: new Date().toISOString() })
+        .eq('id', leadId);
+    } catch (e) {}
   }
 
   logger.info(`SMS sent to ${to} [${sid}]`);

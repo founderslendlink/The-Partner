@@ -79,13 +79,15 @@ async function processAction(action) {
       locked_by: null,
     }).eq('id', action.id);
 
-    await supabase.from('feedback_logs').insert({
-      business_id: action.business_id,
-      action_id:   action.id,
-      result:      'completed_success',
-      reward_score: 0.8,
-      outcome_data: result || {},
-    }).catch(() => {});
+    try {
+      await supabase.from('feedback_logs').insert({
+        business_id: action.business_id,
+        action_id:   action.id,
+        result:      'completed_success',
+        reward_score: 0.8,
+        outcome_data: result || {},
+      });
+    } catch (e) {}
 
     await writeAuditLog({
       businessId:  action.business_id,
@@ -112,15 +114,17 @@ async function handleFailure(action, err) {
   const supabase = db();
   const nextRetry = action.retry_count + 1;
 
-  await supabase.from('error_logs').insert({
-    business_id: action.business_id,
-    action_id:   action.id,
-    error_type:  classifyError(err),
-    error_code:  err.code || null,
-    message:     err.message,
-    stack:       err.stack,
-    context:     { action_type: action.action_type, execution_target: action.execution_target, retry: nextRetry },
-  }).catch(() => {});
+  try {
+    await supabase.from('error_logs').insert({
+      business_id: action.business_id,
+      action_id:   action.id,
+      error_type:  classifyError(err),
+      error_code:  err.code || null,
+      message:     err.message,
+      stack:       err.stack,
+      context:     { action_type: action.action_type, execution_target: action.execution_target, retry: nextRetry },
+    });
+  } catch (e) {}
 
   if (nextRetry <= action.max_retries && shouldRetry(err)) {
     const delay   = RETRY_DELAYS[nextRetry - 1] || 600_000;
@@ -144,10 +148,12 @@ async function handleFailure(action, err) {
       status: 'dead_letter', locked_at: null, locked_by: null,
     }).eq('id', action.id);
 
-    await supabase.from('feedback_logs').insert({
-      business_id: action.business_id, action_id: action.id,
-      result: 'completed_failure', reward_score: -0.8,
-    }).catch(() => {});
+    try {
+      await supabase.from('feedback_logs').insert({
+        business_id: action.business_id, action_id: action.id,
+        result: 'completed_failure', reward_score: -0.8,
+      });
+    } catch (e) {}
 
     await postToDiscord(action.business_id, 'errors',
       `🔴 **Action failed permanently**: \`${action.action_type}\` [${action.id.slice(0, 8)}]\nError: ${err.message}\nTarget: ${action.execution_target || 'api'}`

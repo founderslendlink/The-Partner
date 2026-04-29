@@ -195,19 +195,21 @@ function buildContextSummary(context, decompositionContext) {
 
 async function logDecision({ businessId, agent, sessionId, task, reasoning, reasoningSummary, explanation, confidence, toolSelected, proposedActionsCount, decompositionId }) {
   const supabase = db();
-  await supabase.from('decision_logs').insert({
-    business_id:            businessId,
-    agent,
-    session_id:             sessionId || null,
-    task,
-    reasoning,
-    reasoning_summary:      reasoningSummary,  // V2
-    explanation:            explanation,        // V2
-    confidence,
-    tool_selected:          toolSelected,       // V2
-    proposed_actions_count: proposedActionsCount,
-    decomposition_id:       decompositionId,    // V2
-  }).catch(() => {});
+  try {
+    await supabase.from('decision_logs').insert({
+      business_id:            businessId,
+      agent,
+      session_id:             sessionId || null,
+      task,
+      reasoning,
+      reasoning_summary:      reasoningSummary,  // V2
+      explanation:            explanation,        // V2
+      confidence,
+      tool_selected:          toolSelected,       // V2
+      proposed_actions_count: proposedActionsCount,
+      decomposition_id:       decompositionId,    // V2
+    });
+  } catch (e) {}
 }
 
 module.exports = { runCEOAgent };

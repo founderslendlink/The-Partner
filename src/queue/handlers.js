@@ -249,9 +249,11 @@ async function handle_post_instagram(payload, businessId) {
     postId: payload.post_id,
   });
   if (payload.post_id) {
-    await db().from('content_posts')
-      .update({ status: 'published', published_at: new Date().toISOString(), platform_post_id: result.platform_post_id })
-      .eq('id', payload.post_id).catch(() => {});
+    try {
+      await db().from('content_posts')
+        .update({ status: 'published', published_at: new Date().toISOString(), platform_post_id: result.platform_post_id })
+        .eq('id', payload.post_id);
+    } catch (e) {}
   }
   return result;
 }
@@ -310,9 +312,11 @@ async function handle_get_post_performance(payload, businessId) {
     businessId
   );
   if (payload.post_id) {
-    await db().from('content_posts')
-      .update({ performance: perf, updated_at: new Date().toISOString() })
-      .eq('id', payload.post_id).catch(() => {});
+    try {
+      await db().from('content_posts')
+        .update({ performance: perf, updated_at: new Date().toISOString() })
+        .eq('id', payload.post_id);
+    } catch (e) {}
   }
   return { performance: perf };
 }
@@ -398,11 +402,12 @@ async function handle_send_campaign(payload, businessId) {
 
   // Update campaign record if provided
   if (payload.campaign_id) {
-    await supabase
-      .from('email_campaigns')
-      .update({ sent_count: sent, status: 'sent', sent_at: new Date().toISOString() })
-      .eq('id', payload.campaign_id)
-      .catch(() => {});
+    try {
+      await supabase
+        .from('email_campaigns')
+        .update({ sent_count: sent, status: 'sent', sent_at: new Date().toISOString() })
+        .eq('id', payload.campaign_id);
+    } catch (e) {}
   }
 
   return { sent, total: validLeads.length };
@@ -515,13 +520,15 @@ async function handle_send_referral_request(payload, businessId) {
 
   // Upsert a referral_tracking row (pending until lead converts)
   if (payload.lead_id) {
-    await supabase.from('referral_tracking').upsert({
-      business_id:     businessId,
-      affiliate_id:    payload.affiliate_id || null,
-      referred_lead_id: null,
-      referral_code:   payload.referral_code || null,
-      status:          'pending',
-    }, { onConflict: 'business_id,referral_code' }).catch(() => {});
+    try {
+      await supabase.from('referral_tracking').upsert({
+        business_id:     businessId,
+        affiliate_id:    payload.affiliate_id || null,
+        referred_lead_id: null,
+        referral_code:   payload.referral_code || null,
+        status:          'pending',
+      }, { onConflict: 'business_id,referral_code' });
+    } catch (e) {}
   }
 
   return { sent: true, lead_id: payload.lead_id };
@@ -596,18 +603,19 @@ async function handle_record_referral(payload, businessId) {
       });
 
       // Increment affiliate totals
-      await supabase.rpc('increment_affiliate_stats', {
-        p_affiliate_id: payload.affiliate_id,
-        p_amount: rewardAmount,
-      }).catch(() => {
+      try {
+        await supabase.rpc('increment_affiliate_stats', {
+          p_affiliate_id: payload.affiliate_id,
+          p_amount: rewardAmount,
+        });
+      } catch (e) {
         // rpc may not exist, do manual update
-        supabase.from('affiliates')
-          .update({
-            total_referrals: supabase.raw('total_referrals + 1'),
-          })
-          .eq('id', payload.affiliate_id)
-          .catch(() => {});
-      });
+        try {
+          await supabase.from('affiliates')
+            .update({ total_referrals: supabase.raw('total_referrals + 1') })
+            .eq('id', payload.affiliate_id);
+        } catch (e2) {}
+      }
     }
   }
 
@@ -634,18 +642,20 @@ async function handle_pay_commission(payload, businessId) {
   if (error) throw error;
 
   // Update affiliate total_earned
-  await supabase
-    .from('affiliates')
-    .update({ total_earned: supabase.raw(`total_earned + ${parseFloat(payload.amount) || 0}`) })
-    .eq('id', data.affiliate_id)
-    .catch(() => {});
+  try {
+    await supabase
+      .from('affiliates')
+      .update({ total_earned: supabase.raw(`total_earned + ${parseFloat(payload.amount) || 0}`) })
+      .eq('id', data.affiliate_id);
+  } catch (e) {}
 
   // Update referral_tracking to paid
-  await supabase
-    .from('referral_tracking')
-    .update({ status: 'paid', paid_at: new Date().toISOString() })
-    .eq('id', data.referral_id)
-    .catch(() => {});
+  try {
+    await supabase
+      .from('referral_tracking')
+      .update({ status: 'paid', paid_at: new Date().toISOString() })
+      .eq('id', data.referral_id);
+  } catch (e) {}
 
   return { commission_id: data.id, paid: true, amount: data.amount };
 }

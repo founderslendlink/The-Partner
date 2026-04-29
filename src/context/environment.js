@@ -86,16 +86,18 @@ async function buildEnvironmentContext(businessId, timezone) {
   };
 
   // Persist snapshot for decision audit trail
-  await supabase.from('environment_snapshots').insert({
-    business_id:   businessId,
-    current_time:  now.toISOString(),
-    timezone:      tz,
-    day_of_week:   weekday,
-    hour_of_day:   hour,
-    workload_level: workloadLevel,
-    urgency,
-    calendar_state: {},
-  }).catch(() => {});
+  try {
+    await supabase.from('environment_snapshots').insert({
+      business_id:   businessId,
+      current_time:  now.toISOString(),
+      timezone:      tz,
+      day_of_week:   weekday,
+      hour_of_day:   hour,
+      workload_level: workloadLevel,
+      urgency,
+      calendar_state: {},
+    });
+  } catch (e) {}
 
   return environment;
 }

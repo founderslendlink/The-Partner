@@ -435,14 +435,16 @@ async function runMeetingBriefings(businessId) {
 
 async function logHeartbeatCheck(businessId, checkType, violationsFound) {
   const supabase = db();
-  await supabase.from('heartbeat_checks').insert({
-    business_id:      businessId,
-    check_type:       checkType,
-    frequency:        checkType === 'urgent' ? '5min' : checkType === 'pipeline' ? 'hourly' : 'daily',
-    last_run_at:      new Date().toISOString(),
-    violations_found: violationsFound,
-    result:           { ran_at: new Date().toISOString(), violations: violationsFound },
-  }).catch(() => {});
+  try {
+    await supabase.from('heartbeat_checks').insert({
+      business_id:      businessId,
+      check_type:       checkType,
+      frequency:        checkType === 'urgent' ? '5min' : checkType === 'pipeline' ? 'hourly' : 'daily',
+      last_run_at:      new Date().toISOString(),
+      violations_found: violationsFound,
+      result:           { ran_at: new Date().toISOString(), violations: violationsFound },
+    });
+  } catch (e) {}
 }
 
 module.exports = { startHeartbeat };

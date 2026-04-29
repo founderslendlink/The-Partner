@@ -84,12 +84,14 @@ async function approveAction(actionId, approvedBy = 'operator') {
 
   if (error) throw error;
 
-  await supabase.from('feedback_logs').insert({
-    business_id: data.business_id,
-    action_id:   actionId,
-    result:      'approved',
-    reward_score: 0.5,
-  }).catch(() => {});
+  try {
+    await supabase.from('feedback_logs').insert({
+      business_id: data.business_id,
+      action_id:   actionId,
+      result:      'approved',
+      reward_score: 0.5,
+    });
+  } catch (e) {}
 
   return data;
 }
@@ -108,13 +110,15 @@ async function rejectAction(actionId, reason = '') {
 
   if (error) throw error;
 
-  await supabase.from('feedback_logs').insert({
-    business_id:  data.business_id,
-    action_id:    actionId,
-    result:       'rejected',
-    reward_score: -0.5,
-    reason,
-  }).catch(() => {});
+  try {
+    await supabase.from('feedback_logs').insert({
+      business_id:  data.business_id,
+      action_id:    actionId,
+      result:       'rejected',
+      reward_score: -0.5,
+      reason,
+    });
+  } catch (e) {}
 
   return data;
 }

@@ -35,28 +35,30 @@ async function getConnection(businessId, platform) {
 // ── Update post record after publishing ──────────────────────────────────────
 
 async function markPublished(postId, platformPostId) {
-  await db()
-    .from('content_posts')
-    .update({
-      status: 'published',
-      published_at: new Date().toISOString(),
-      platform_post_id: platformPostId || null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', postId)
-    .catch(() => {});
+  try {
+    await db()
+      .from('content_posts')
+      .update({
+        status: 'published',
+        published_at: new Date().toISOString(),
+        platform_post_id: platformPostId || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', postId);
+  } catch (e) {}
 }
 
 async function markFailed(postId, reason) {
-  await db()
-    .from('content_posts')
-    .update({
-      status: 'failed',
-      performance: { error: reason },
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', postId)
-    .catch(() => {});
+  try {
+    await db()
+      .from('content_posts')
+      .update({
+        status: 'failed',
+        performance: { error: reason },
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', postId);
+  } catch (e) {}
 }
 
 // ── Instagram ─────────────────────────────────────────────────────────────────

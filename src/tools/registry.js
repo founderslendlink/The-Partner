@@ -122,15 +122,16 @@ async function recordToolUsage(toolName, { success, latencyMs }) {
   const alpha = 0.1;
   const newRate = tool.success_rate * (1 - alpha) + (success ? 1 : 0) * alpha;
 
-  await supabase
-    .from('tools_registry')
-    .update({
-      success_rate: newRate,
-      avg_latency_ms: latencyMs || tool.avg_latency_ms,
-      last_used_at: new Date().toISOString(),
-    })
-    .eq('tool_name', toolName)
-    .catch(() => {});
+  try {
+    await supabase
+      .from('tools_registry')
+      .update({
+        success_rate: newRate,
+        avg_latency_ms: latencyMs || tool.avg_latency_ms,
+        last_used_at: new Date().toISOString(),
+      })
+      .eq('tool_name', toolName);
+  } catch (e) {}
 }
 
 module.exports = { getAvailableTools, getTool, selectToolForAction, getToolsManifestForAgent, recordToolUsage };

@@ -37,14 +37,16 @@ async function getConnection(businessId) {
 // ── Interaction Logger ────────────────────────────────────────────────────────
 
 async function logInteraction(businessId, { to, subject, body, leadId }) {
-  await db().from('interactions').insert({
-    business_id: businessId,
-    lead_id:     leadId || null,
-    channel:     'email',
-    direction:   'outbound',
-    content:     `Subject: ${subject}\n\n${body}`,
-    metadata:    { to, subject },
-  }).catch(() => {});
+  try {
+    await db().from('interactions').insert({
+      business_id: businessId,
+      lead_id:     leadId || null,
+      channel:     'email',
+      direction:   'outbound',
+      content:     `Subject: ${subject}\n\n${body}`,
+      metadata:    { to, subject },
+    });
+  } catch (e) {}
 }
 
 // ── SendGrid ──────────────────────────────────────────────────────────────────

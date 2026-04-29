@@ -78,12 +78,14 @@ async function postWeeklyReport(businessId, bizName) {
 
   // Store report
   const supabase = db();
-  await supabase.from('reports').insert({
-    business_id: businessId,
-    type: 'weekly_revenue',
-    period: new Date().toISOString().split('T')[0],
-    content: output,
-  }).catch(() => {});
+  try {
+    await supabase.from('reports').insert({
+      business_id: businessId,
+      type: 'weekly_revenue',
+      period: new Date().toISOString().split('T')[0],
+      content: output,
+    });
+  } catch (e) {}
 
   logger.info(`Weekly report posted for ${bizName}`);
 }

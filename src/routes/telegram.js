@@ -263,14 +263,15 @@ async function getOrCreateSession(chatId) {
 async function updateSession(sessionId, context) {
   if (!sessionId) return;
   const supabase = db();
-  await supabase
-    .from('sessions')
-    .update({
-      context,
-      expires_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-    })
-    .eq('id', sessionId)
-    .catch(() => {});
+  try {
+    await supabase
+      .from('sessions')
+      .update({
+        context,
+        expires_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+      })
+      .eq('id', sessionId);
+  } catch (e) {}
 }
 
 // ── Telegram File Helpers ─────────────────────────────────────────────────────

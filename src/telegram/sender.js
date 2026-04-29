@@ -58,11 +58,13 @@ async function sendApprovalRequest(chatId, queuedAction, originalAction) {
 
   // Store the approval request
   const supabase = db();
-  await supabase.from('approval_requests').insert({
-    business_id:      queuedAction.business_id,
-    action_queue_id:  queuedAction.id,
-    status:           'pending',
-  }).catch(() => {});
+  try {
+    await supabase.from('approval_requests').insert({
+      business_id:      queuedAction.business_id,
+      action_queue_id:  queuedAction.id,
+      status:           'pending',
+    });
+  } catch (e) {}
 }
 
 /**
