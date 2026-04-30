@@ -4,7 +4,7 @@ const { logger } = require('./logger');
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const GEMINI_API_BASE   = 'https://generativelanguage.googleapis.com/v1beta/models';
 const ANTHROPIC_MODEL   = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514';
-const GEMINI_MODEL      = process.env.GEMINI_MODEL    || 'gemini-2.0-flash';
+const GEMINI_MODEL      = process.env.GEMINI_MODEL    || 'gemini-1.5-flash-latest';
 
 // ── Anthropic ──────────────────────────────────────────────────────────────────
 
