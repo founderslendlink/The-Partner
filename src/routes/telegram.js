@@ -57,6 +57,8 @@ async function handleUpdate(update) {
 
   if (!text.trim()) return;
 
+  console.log('[TELEGRAM] Message received:', text);
+
   if (text.startsWith('/')) {
     await handleCommand(text, chatId, business.id, session);
     return;
@@ -123,6 +125,7 @@ async function handleConversation(text, chatId, businessId, session, inputType) 
       userInput: text,
       sessionId: session?.id,
     });
+    console.log('[CONTEXT] Built successfully, business_id:', context.business_id);
 
     const decompositionContext = await decomposeTask({
       businessId,
@@ -130,6 +133,7 @@ async function handleConversation(text, chatId, businessId, session, inputType) 
       sessionId: session?.id,
       context,
     });
+    console.log('[DECOMPOSE] Done, isComplex:', decompositionContext.isComplex);
 
     if (decompositionContext.isComplex && decompositionContext.subtasks.length > 1) {
       await sendTelegramMessage(
@@ -138,12 +142,14 @@ async function handleConversation(text, chatId, businessId, session, inputType) 
       );
     }
 
+    console.log('[CEO] Calling agent with task:', text);
     const agentOutput = await runCEOAgent({
       task: text,
       context,
       sessionId: session?.id,
       decompositionContext,
     });
+    console.log('[CEO] Response received:', JSON.stringify(agentOutput).slice(0, 200));
 
     await writeMemoryUpdates(businessId, agentOutput.memory_updates);
 
@@ -181,8 +187,11 @@ async function handleConversation(text, chatId, businessId, session, inputType) 
     }
 
     await sendTelegramMessage(chatId, responseText);
+    console.log('[TELEGRAM] Response sent');
 
   } catch (err) {
+    console.error('[ERROR] Full error:', err);
+    console.error('[ERROR] Stack:', err.stack);
     logger.error('Conversation handler error:', err.message);
     await sendTelegramMessage(chatId, `❌ Something went wrong: ${err.message}`);
   }

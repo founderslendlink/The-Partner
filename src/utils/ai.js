@@ -34,27 +34,32 @@ async function callAnthropic({ systemPrompt, userMessage, maxTokens }) {
 
 async function callGemini({ systemPrompt, userMessage, maxTokens }) {
   const url = `${GEMINI_API_BASE}/${GEMINI_MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`;
-  const resp = await axios.post(
-    url,
-    {
-      system_instruction: {
-        parts: [{ text: systemPrompt }],
-      },
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: userMessage }],
+  console.log('[GEMINI] Calling with model:', GEMINI_MODEL);
+  try {
+    const resp = await axios.post(
+      url,
+      {
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: `${systemPrompt}\n\n${userMessage}` }],
+          },
+        ],
+        generationConfig: {
+          maxOutputTokens: maxTokens,
+          temperature: 0.7,
         },
-      ],
-      generationConfig: {
-        maxOutputTokens: maxTokens,
-        temperature: 0.7,
       },
-    },
-    { timeout: 45000 }
-  );
-  const text = resp.data.candidates[0].content.parts[0].text;
-  return parseAgentOutput(text);
+      { timeout: 45000 }
+    );
+    console.log('[GEMINI] Success, status:', resp.status);
+    return parseAgentOutput(resp.data.candidates[0].content.parts[0].text);
+  } catch (err) {
+    console.error('[GEMINI] Error status:', err.response?.status);
+    console.error('[GEMINI] Error body:', JSON.stringify(err.response?.data));
+    console.error('[GEMINI] Error message:', err.message);
+    throw new Error('AI inference failed (Gemini): ' + (err.response?.data?.error?.message || err.message));
+  }
 }
 
 // ── Cascade ────────────────────────────────────────────────────────────────────
@@ -82,9 +87,9 @@ async function callAI({ systemPrompt, userMessage, maxTokens = 2048 }) {
     try {
       return await callGemini({ systemPrompt, userMessage, maxTokens });
     } catch (err) {
-      const msg = err.response?.data?.error?.message || err.message;
+      const msg = err.message;
       logger.error('Gemini API error:', msg);
-      throw new Error(`AI inference failed (Gemini): ${msg}`);
+      throw new Error(msg);
     }
   }
 
