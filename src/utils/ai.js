@@ -56,9 +56,10 @@ async function callGemini({ systemPrompt, userMessage, maxTokens }) {
     return parseAgentOutput(resp.data.candidates[0].content.parts[0].text);
   } catch (err) {
     console.error('[GEMINI] Error status:', err.response?.status);
-    console.error('[GEMINI] Error body:', JSON.stringify(err.response?.data));
+    console.error('[GEMINI] Error body raw:', JSON.stringify(err.response?.data || 'no response data'));
     console.error('[GEMINI] Error message:', err.message);
-    throw new Error('AI inference failed (Gemini): ' + (err.response?.data?.error?.message || err.message));
+    console.error('[GEMINI] Full error keys:', Object.keys(err).join(', '));
+    throw new Error('AI inference failed (Gemini): ' + (err.response?.data?.error?.message || err.response?.data?.message || err.message || 'unknown error'));
   }
 }
 

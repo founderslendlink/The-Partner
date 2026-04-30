@@ -12,7 +12,7 @@ async function sendTelegramMessage(chatId, text, extra = {}) {
     await axios.post(`${BASE_URL()}/sendMessage`, {
       chat_id: chatId,
       text,
-      parse_mode: 'Markdown',
+      // No parse_mode — plain text, always safe for AI-generated content
       ...extra,
     }, { timeout: 10000 });
   } catch (err) {
