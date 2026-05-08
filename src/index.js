@@ -24,18 +24,10 @@ async function boot() {
   logger.info('The Partner is starting up...');
 
   // AI provider availability check
-  if (process.env.ANTHROPIC_API_KEY) {
-    logger.info('AI provider: Anthropic Claude (primary)');
-  } else {
-    logger.warn('Anthropic API key not set');
-  }
   if (process.env.GEMINI_API_KEY) {
-    logger.info('AI provider: Google Gemini (available as fallback)');
+    logger.info(`AI provider: Google Gemini (${process.env.GEMINI_MODEL || 'gemini-1.5-flash-latest'})`);
   } else {
-    logger.warn('Gemini API key not set');
-  }
-  if (!process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY) {
-    logger.error('CRITICAL: No AI provider configured. AI features will not work.');
+    logger.error('CRITICAL: GEMINI_API_KEY not set. AI features will not work. Get a free key at aistudio.google.com');
   }
 
   // Verify Supabase connection
